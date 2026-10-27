@@ -1,0 +1,13 @@
+# Local datasets, model files, and experiment outputs
+/data/
+/plm/
+/result/
+*.pth
+*.pt
+
+# IDE settings
+.idea/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
