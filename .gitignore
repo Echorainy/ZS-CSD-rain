@@ -1,5 +1,4 @@
-# Local datasets, model files, and experiment outputs
-/data/
+# Local model files and experiment outputs
 /plm/
 /result/
 *.pth
