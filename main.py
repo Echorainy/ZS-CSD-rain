@@ -18,17 +18,20 @@ from src.model import SITCL
 class Main:
     def __init__(self, args):
         config = Box(yaml.load(open('D:/零样本立场/ZS-CSD/src/config.yaml', 'r', encoding='utf-8'), Loader=yaml.FullLoader))
+        #打开配置文件 → 解析 YAML → 包装成 Box → 保存到 config
         for k, v in vars(args).items():
-            setattr(config, k, v)
+            #取出args中每个参数的键值，放进 k 和 v。
+            #vars(args)返回键值 .items()历遍键值
+            setattr(config, k, v) #setattr根据字符串形式的名字设置对象的属性，setattr(对象, 属性名, 属性值)
         self.config = config
         self.formatted_time = config.time
-        self.log_dir = f"./result/{self.config.model_type}_{self.formatted_time}/log/"
-        self.pred_dir = f"./result/{self.config.model_type}_{self.formatted_time}/pred/"
-        self.save_dir = f"./result/{self.config.model_type}_{self.formatted_time}/save/"
+        self.log_dir = f"./result/{self.config.model_type}_{self.formatted_time}/log/" #日志目录
+        self.pred_dir = f"./result/{self.config.model_type}_{self.formatted_time}/pred/" #预测结果目录
+        self.save_dir = f"./result/{self.config.model_type}_{self.formatted_time}/save/" #模型保存目录
         self.pred_file = self.pred_dir + f'{self.config.seed}.csv'
         for d in [self.log_dir, self.pred_dir, self.save_dir]:
-            os.makedirs(d, exist_ok=True)
-        logging.basicConfig(
+            os.makedirs(d, exist_ok=True) #创建目录
+        logging.basicConfig( #配置日志
             filename=self.log_dir + f'{self.config.seed}.log',
             filemode='w',
             level=logging.INFO,
