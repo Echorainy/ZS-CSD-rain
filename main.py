@@ -42,17 +42,19 @@ class Main:
         self.best_epoch = 0
         self.best_test_macro_f1 = 0.0
 
-    def train_iter(self):
-        self.model.train()
+    def train_iter(self): #遍历训练数据加载器一轮
+        self.model.train() #把模型切换为训练模式
         running_loss = 0.0
         for data in tqdm(self.trainLoader):
             loss, _, _ = self.model(**data)
-            loss.backward()
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.config.max_grad_norm)
-            self.optimizer.step()
-            self.scheduler.step()
-            self.model.zero_grad()
-            running_loss += loss.item()
+            loss.backward() #计算并累积梯度
+            nn.utils.clip_grad_norm_( #缩小梯度
+            	self.model.parameters(), 
+                self.config.max_grad_norm) #梯度上限
+            self.optimizer.step() #根据梯度更新参数
+            self.scheduler.step() #调整学习率
+            self.model.zero_grad() #清除梯度
+            running_loss += loss.item() #累加损失
         train_loss = running_loss / len(self.trainLoader)
         return train_loss
 
@@ -88,8 +90,8 @@ class Main:
     def train(self):
         best_dev_f1 = 0.0 #最佳验证集 macro F1
         for epoch in range(self.config.epoch_size):
-            train_loss = self.train_iter()
-            dev_macro_f1, dev_loss, *_ = self.evaluate_iter(mode='dev')
+            train_loss = self.train_iter() #更新训练集损失参数
+            dev_macro_f1, dev_loss, *_ = self.evaluate_iter(mode='dev') #验证集评估模型
             logging.info(f'Epoch {epoch+1}, Train Loss: {train_loss:.2f}, Val Loss: {dev_loss:.2f}, Val Macro F1: {100 * dev_macro_f1:.2f}')
             if dev_macro_f1 >= best_dev_f1:
                 best_dev_f1 = dev_macro_f1
