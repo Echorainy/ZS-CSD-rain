@@ -14,7 +14,7 @@ class MyDataset(Dataset): #提供样本的数据集
     
 class DataProcessor(): #读取数据、分词、把数据整理成模型可用的形式
     def __init__(self, config):
-        self.tokenizer = AutoTokenizer.from_pretrained(config.bert_dir)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.bert_dir) #分词器
         self.config = config
     
     def read_data(self, mode):
@@ -27,20 +27,20 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
         content = json.load(open(file_path, 'r', encoding='utf-8'))
         res = []
         for line in tqdm(content, desc='Processing dialogues for {}'.format(mode)):
-            new_dialog = self.parse_dialogue(line, mode)
+            new_dialog = self.parse_dialogue(line, mode) #传入对话
             res.append(new_dialog)
         return res
     
     def parse_dialogue(self, dialogue, mode):
         new_sentences = []  # 存放prompt好的mask输入
         new_label_sen = []  # 存放prompt好的立场输入
-        target_indices = [] # 存放立场的索引+[SEP]
-        target = dialogue["target"]
+        target_indices = [] # 存放立场的索引+[SEP] 目标在每句话token序列中的位置范围
+        target = dialogue["target"] #取值
         speakers = dialogue["speakers"]
         for id, sen in enumerate(dialogue['sentences']):
             new_sen = f'[CLS]在话语“{sen}”中，用户{speakers[id]}对[SEP]{target}[SEP]的立场为[MASK][SEP]'
-            if id == len(dialogue['sentences']) - 1:
-                label_sen = f'[CLS]在话语“{sen}”中，用户{speakers[id]}对[SEP]{target}[SEP]的立场为{dialogue["label"]}[SEP]'
+            if id == len(dialogue['sentences']) - 1: #最后一句
+                label_sen = f'[CLS]在话语“{sen}”中，用户{speakers[id]}对[SEP]{target}[SEP]的立场为{dialogue["label"]}[SEP]' #显示立场
                 label_sen_token = self.tokenizer.tokenize(label_sen)
                 new_label_sen.append(label_sen_token)
             tokens = self.tokenizer.tokenize(new_sen)
@@ -106,7 +106,7 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
             train_dataset = MyDataset(self.forward('train'))[:100]
             dev_dataset = MyDataset(self.forward('dev'))[:100]
             test_dataset = MyDataset(self.forward('test'))[:100]
-        else:
+        else: #默认
             train_dataset = MyDataset(self.forward('train'))
             dev_dataset = MyDataset(self.forward('dev'))
             test_dataset = MyDataset(self.forward('test'))
