@@ -125,7 +125,8 @@ class Main:
 
     def forward(self):
         self.trainLoader, self.devLoader, self.testLoader = DataProcessor(self.config).get_data()
-        self.model = SITCL(self.config).to(self.config.device)
+        #训练集、验证集、测试集
+        self.model = SITCL(self.config).to(self.config.device) #创建模型
         self.load_param()
         logging.info('Start training...')
         self.train()
