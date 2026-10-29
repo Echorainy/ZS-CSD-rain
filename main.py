@@ -86,7 +86,7 @@ class Main:
         return macro_f1, val_loss, favor, against, neutral, f1_avg, acc
 
     def train(self):
-        best_dev_f1 = 0.0
+        best_dev_f1 = 0.0 #最佳验证集 macro F1
         for epoch in range(self.config.epoch_size):
             train_loss = self.train_iter()
             dev_macro_f1, dev_loss, *_ = self.evaluate_iter(mode='dev')
@@ -99,19 +99,25 @@ class Main:
                 torch.save(self.model.state_dict(), self.save_dir + 'best_model.pth')
 
     def load_param(self):
-        param_optimizer = list(self.model.named_parameters())
-        no_decay = ['bias', 'LayerNorm.weight']
-        bert_lr = float(self.config.bert_lr)
+        param_optimizer = list(self.model.named_parameters()) #模型参数名、参数对象
+        no_decay = ['bias', 'LayerNorm.weight'] #不给偏置、层归一化施加权重衰减
+        bert_lr = float(self.config.bert_lr) #两组学习率
         other_lr = float(self.config.other_lr)
-        optimizer_grouped_parameters = [
-            {'params': [p for n, p in param_optimizer if 'bert' in n and not any(nd in n for nd in no_decay)], 'weight_decay': float(self.config.weight_decay), 'lr': bert_lr},
-            {'params': [p for n, p in param_optimizer if 'bert' in n and any(nd in n for nd in no_decay)], 'weight_decay': 0, 'lr': bert_lr},
-            {'params': [p for n, p in param_optimizer if 'bert' not in n and not any(nd in n for nd in no_decay)], 'weight_decay': float(self.config.weight_decay), 'lr': other_lr},
-            {'params': [p for n, p in param_optimizer if 'bert' not in n and any(nd in n for nd in no_decay)], 'weight_decay': 0, 'lr': other_lr}
+        optimizer_grouped_parameters = [ #分组设置权重衰减、学习率
+            {'params': [p for n, p in param_optimizer if 'bert' in n and not any(nd in n for nd in no_decay)], 
+            'weight_decay': float(self.config.weight_decay), 'lr': bert_lr},
+            {'params': [p for n, p in param_optimizer if 'bert' in n and any(nd in n for nd in no_decay)], 
+            'weight_decay': 0, 'lr': bert_lr},
+            {'params': [p for n, p in param_optimizer if 'bert' not in n and not any(nd in n for nd in no_decay)],
+             'weight_decay': float(self.config.weight_decay), 'lr': other_lr},
+            {'params': [p for n, p in param_optimizer if 'bert' not in n and any(nd in n for nd in no_decay)],
+             'weight_decay': 0, 'lr': other_lr}
         ]
         self.optimizer = AdamW(optimizer_grouped_parameters, eps=float(self.config.adam_epsilon))
-        self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=self.config.warmup_steps,
-                                                         num_training_steps=self.config.epoch_size * len(self.trainLoader))
+        # 创建优化器
+        self.scheduler = get_linear_schedule_with_warmup( #创建学习率调度器
+            self.optimizer, num_warmup_steps=self.config.warmup_steps, #预热步骤：学习率升高
+            num_training_steps=self.config.epoch_size * len(self.trainLoader)) #总训练步数=训练轮数 × 每轮的批次数
 
     def get_metrices(self, trues, preds):   
         f1_macro = f1_score(y_true=trues, y_pred=preds, average='macro')
