@@ -59,26 +59,32 @@ class Main:
         return train_loss
 
     def evaluate_iter(self, dataLoader=None, mode=None):
-        self.model.eval()
+        self.model.eval() #切换到评估模式：模型输出结果 → 整理预测与标签 → 计算指标
         val_loss = 0.0
-        seq_preds = []
-        seq_trues = []
+        seq_preds = [] #收集模型预测的立场类别
+        seq_trues = [] #收集真实立场
         doc_id_lst = []
         if mode == 'dev':
             dataLoader = self.devLoader
         elif mode == 'test':
             dataLoader = self.testLoader
-        with torch.no_grad():
+        with torch.no_grad(): #不记录梯度
+            #进入 with 块：在这个范围内关闭梯度记录。离开 with 块：恢复进入前的梯度记录状态
             for data in tqdm(dataLoader):
                 loss, seq_output, labels = self.model(**data)
                 val_loss += loss.item()
                 seq_output = seq_output.detach().cpu().numpy()
-                seq_output = np.argmax(seq_output, -1)
+                #PyTorch 张量
+                # ↓ detach：与计算图断开
+                #CPU 张量
+                #↓ numpy：转成 NumPy 数组
+                #NumPy 数组
+                seq_output = np.argmax(seq_output, -1) #返回最大值的下标（立场）
                 labels = labels.detach().cpu().numpy()
-                labels = labels.reshape(-1)
-                seq_preds.extend(seq_output)
-                seq_trues.extend(labels)
-                doc_id_lst.extend(data['doc_id'])
+                labels = labels.reshape(-1) #改变形状
+                seq_preds.extend(seq_output) #加入当前批次的预测立场
+                seq_trues.extend(labels) #加入当前批次的真实立场
+                doc_id_lst.extend(data['doc_id']) #从当前批次取出键为 'doc_id' 的值
         val_loss /= len(dataLoader)
         macro_f1, favor, against, neutral, f1_avg, acc = self.get_metrices(seq_trues, seq_preds)
         if mode == 'test':

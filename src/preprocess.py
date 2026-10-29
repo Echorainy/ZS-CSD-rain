@@ -12,7 +12,7 @@ class MyDataset(Dataset): #提供样本的数据集
     def __getitem__(self, index):
         return self.data[index]
     
-class DataProcessor():
+class DataProcessor(): #读取数据、分词、把数据整理成模型可用的形式
     def __init__(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.bert_dir)
         self.config = config
