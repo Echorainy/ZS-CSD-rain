@@ -88,9 +88,9 @@ class Main:
         val_loss /= len(dataLoader)
         macro_f1, favor, against, neutral, f1_avg, acc = self.get_metrices(seq_trues, seq_preds)
         if mode == 'test':
-            result = {'doc_id': doc_id_lst, 'true': seq_trues, 'pred': seq_preds}
-            df = pd.DataFrame(result)
-            df.to_csv(self.pred_file, index=False)
+            result = {'doc_id': doc_id_lst, 'true': seq_trues, 'pred': seq_preds} #数据ID，真实标签，预测标签
+            df = pd.DataFrame(result) #变成表格
+            df.to_csv(self.pred_file, index=False) #将预测结果写入csv
         return macro_f1, val_loss, favor, against, neutral, f1_avg, acc
 
     def train(self):
@@ -99,12 +99,14 @@ class Main:
             train_loss = self.train_iter() #更新训练集损失参数
             dev_macro_f1, dev_loss, *_ = self.evaluate_iter(mode='dev') #验证集评估模型
             logging.info(f'Epoch {epoch+1}, Train Loss: {train_loss:.2f}, Val Loss: {dev_loss:.2f}, Val Macro F1: {100 * dev_macro_f1:.2f}')
-            if dev_macro_f1 >= best_dev_f1:
+            #写入日志
+            if dev_macro_f1 >= best_dev_f1: #保存验证集最佳模型，若为最佳则运行一次测试？
                 best_dev_f1 = dev_macro_f1
-                test_macro_f1, test_loss, *_ = self.evaluate_iter(mode='test')
+                test_macro_f1, test_loss, *_ = self.evaluate_iter(mode='test') 
                 logging.info(f'Test Loss: {test_loss:.2f}, Test Macro F1: {100 * test_macro_f1:.2f}')
                 self.best_epoch = epoch + 1
-                torch.save(self.model.state_dict(), self.save_dir + 'best_model.pth')
+                torch.save(self.model.state_dict(), #模型状态字典
+                     self.save_dir + 'best_model.pth') #路径
 
     def load_param(self):
         param_optimizer = list(self.model.named_parameters()) #模型参数名、参数对象
