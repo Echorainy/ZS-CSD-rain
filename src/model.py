@@ -63,13 +63,16 @@ class SITCL(nn.Module):
         super().__init__()
         self.config = config
         self.alpha = config.alpha
-        self.bert = AutoModel.from_pretrained(config.bert_dir)
-        self.gru = nn.GRU(input_size=768, hidden_size=config.gru_hidden, num_layers=config.gru_layer, batch_first=True)
-        self.fc = nn.Linear(config.gru_hidden, config.num_classes)
-        self.criterion = nn.CrossEntropyLoss()
+        self.bert = AutoModel.from_pretrained(config.bert_dir) #加载预训练语言模型，向量表示
+        self.gru = nn.GRU(input_size=768, #输入一条对话所需向量的维度 
+        	hidden_size=config.gru_hidden, #GRU隐藏状态的维度 
+			num_layers=config.gru_layer #GRU层数
+            ,batch_first=True)
+        self.fc = nn.Linear(config.gru_hidden, config.num_classes) #nn.Linear(输入维度, 输出维度) 话语转换成各类分数
+        self.criterion = nn.CrossEntropyLoss()#创建交叉墒损失函数
         self.SSE = SSE(hidden_dim=config.gru_hidden)
 
-    def forward(self, **kwargs):
+    def forward(self, **kwargs): #kwargs：写入字典
         input_ids = kwargs['input_ids']
         input_masks = kwargs['input_masks']
         input_segments = kwargs['input_segments']
@@ -80,11 +83,11 @@ class SITCL(nn.Module):
         # 所有单对话*seq_len*768
         out = self.bert(input_ids=input_ids, attention_mask=input_masks, token_type_ids=input_segments).last_hidden_state
 
-        H_final = []
-        stance = []
+        H_final = [] #经SSE处理后的对话
+        stance = []#每段对话最后一句
         for dia_id, (st, ed) in enumerate(dia_idx):
-            h = out[st:ed, -2, :] # 取单个对话（当前对话的所有子对话）的向量，(L,D)
-            o, _ = self.gru(h.unsqueeze(0))      # (1, L, D)
+            h = out[st:ed, -2, :] # 取单个对话（当前对话的所有子对话）的向量，(L,D)，取每个字对话的倒数第二个token位置（mask），保留该位置向量中全部768个数
+            o, _ = self.gru(h.unsqueeze(0))      # (1, L, D) 当前对话经过 GRU 后的各句话表示。
             o = o.squeeze(0)                     # (L, D)
             v = self.SSE(o, speakers[dia_id]) # Speaker Interaction Encoder
             H_final.append(v)
