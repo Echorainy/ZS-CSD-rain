@@ -46,7 +46,7 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
             tokens = self.tokenizer.tokenize(new_sen)
             new_sentences.append(tokens)
             sep_indices = [i for i, token in enumerate(tokens) if token == '[SEP]'] # 寻找[SEP]的索引
-            target_indices.append([sep_indices[0] + 1, sep_indices[1]])
+            target_indices.append([sep_indices[0] + 1, sep_indices[1]]) #记录范围
         dialogue['sentences'] = new_sentences
         dialogue['label_sen'] = new_label_sen
         dialogue['target_idx'] = target_indices
@@ -56,12 +56,12 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
         res = [] 
         for document in data:
             sentences, speakers, label, target_idx, target, label_sen, doc_id = [document[w] for w in ['sentences', 'speakers', 'label','target_idx', 'target', 'label_sen', 'id']]
-            input_ids = list(map(self.tokenizer.convert_tokens_to_ids, sentences))
+            input_ids = list(map(self.tokenizer.convert_tokens_to_ids, sentences)) #token变数字
             input_masks = [[1] * len(w) for w in input_ids]
             input_segments = [[0] * len(w) for w in input_ids] # 把输入分为：tokens索引，全1列表，全0列表
-            input_ids_label = list(map(self.tokenizer.convert_tokens_to_ids, label_sen))
-            input_masks_label = [[1] * len(w) for w in input_ids_label]
-            input_segments_label = [[0] * len(w) for w in input_ids_label]
+            input_ids_label = list(map(self.tokenizer.convert_tokens_to_ids, label_sen)) #token变token- ID
+            input_masks_label = [[1] * len(w) for w in input_ids_label] #创建掩码1
+            input_segments_label = [[0] * len(w) for w in input_ids_label] #掩码0
             res.append((input_ids, input_masks, input_segments, speakers, label, target_idx, target, input_ids_label, input_masks_label, input_segments_label, doc_id))
         return res
     
@@ -71,24 +71,26 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
         return res
     
     def collate_fn_new(self, batch):
-        input_ids, input_masks, input_segments, speakers, label, target_idx, target, input_ids_label, input_masks_label, input_segments_label, doc_id = zip(*batch)
+        input_ids, input_masks, input_segments, speakers, label, target_idx, target, input_ids_label, input_masks_label, input_segments_label, doc_id = zip(*batch) #按列分组
         dialogue_length = list(map(len, input_ids)) # 记录了每个对话的子对话数量
         st = 0
         # input_ids: bz * 每个对话的所有子对话
-        dia_idx = [] # 这里是记录了每个对话的子对话索引
+        dia_idx = [] # 这里是记录了每个对话的子对话索引范围
         for num in dialogue_length:
             dia_idx.append([st, st + num])
             st += num
+        #分别对是否含掩码的对话补齐
         max_lens = max(len(w) for sublist in input_ids for w in sublist) # 找出所有子对话中的最大长度
-        padding = lambda input_batch: [w + [0] * (max_lens - len(w)) for sublist in input_batch for w in sublist]
+        padding = lambda input_batch: [w + [0] * (max_lens - len(w)) for sublist in input_batch for w in sublist] #对齐长度
         input_ids, input_masks, input_segments = map(padding, [input_ids, input_masks, input_segments])
         max_lens_label = max(len(w) for sublist in input_ids_label for w in sublist)
         padding_label = lambda input_batch: [w + [0] * (max_lens_label - len(w)) for sublist in input_batch for w in sublist]
         input_ids_label, input_masks_label, input_segments_label = map(padding_label, [input_ids_label, input_masks_label, input_segments_label]) 
         res = {
+    		#转换为向量放入字典
             "input_ids": torch.tensor(input_ids).to(self.config.device),
             "input_masks": torch.tensor(input_masks).to(self.config.device),
-            "input_segments": torch.tensor(input_segments).to(self.config.device),
+            "input_segments": torch.tensor(input_segments).to(self.config.device), #token段编号
             "speakers": speakers,
             "label": torch.tensor(label).to(self.config.device),
             "dia_idx": dia_idx,
@@ -103,13 +105,15 @@ class DataProcessor(): #读取数据、分词、把数据整理成模型可用�
     
     def get_data(self):
         if self.config.debug:
-            train_dataset = MyDataset(self.forward('train'))[:100]
+            train_dataset = MyDataset(self.forward('train'))[:100] #最多取前100元素
             dev_dataset = MyDataset(self.forward('dev'))[:100]
             test_dataset = MyDataset(self.forward('test'))[:100]
         else: #默认
             train_dataset = MyDataset(self.forward('train'))
             dev_dataset = MyDataset(self.forward('dev'))
             test_dataset = MyDataset(self.forward('test'))
+        #train_dataset：取样来源。 batch_size：每批取多少条样本。shuffle=True：遍历时打乱样本顺序。
+		#collate_fn：取到一批样本后，调用哪个函数把它们整理成模型输入。
         train_loader = DataLoader(train_dataset, batch_size=self.config.batchsize, shuffle=True, collate_fn=self.collate_fn_new)
         dev_loader = DataLoader(dev_dataset, batch_size=self.config.batchsize, shuffle=False, collate_fn=self.collate_fn_new)
         test_loader = DataLoader(test_dataset, batch_size=self.config.batchsize, shuffle=False, collate_fn=self.collate_fn_new)
