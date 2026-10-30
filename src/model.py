@@ -82,19 +82,19 @@ class SITCL(nn.Module):
         targets = kwargs['target']
         # 所有单对话*seq_len*768
         out = self.bert(input_ids=input_ids, attention_mask=input_masks, token_type_ids=input_segments).last_hidden_state
-
+vx
         H_final = [] #经SSE处理后的对话
-        stance = []#每段对话最后一句
+        stance = []#每段对话最后一句的立场
         for dia_id, (st, ed) in enumerate(dia_idx):
             h = out[st:ed, -2, :] # 取单个对话（当前对话的所有子对话）的向量，(L,D)，取每个字对话的倒数第二个token位置，保留该位置向量中全部768个数
-            o, _ = self.gru(h.unsqueeze(0))      # (1, L, D) 当前对话经过 GRU 后的各句话表示。
+            o, _ = self.gru(h.unsqueeze(0))      # (1, L, D) 当前对话经过 GRU 后的各句话表示。（一条对话，L句话，D维）
             o = o.squeeze(0)                     # (L, D)
             v = self.SSE(o, speakers[dia_id]) # Speaker Interaction Encoder
             H_final.append(v)
             stance.append(v[-1])  # 取最后一个子对话作为立场
-        stance = torch.stack(stance)             # (B, D)
-        logits = self.fc(stance)                 # (B, num_classes)
-        ce_loss = self.criterion(logits, label)
-        target_contrastive_loss = target_CL(H_final, targets, self.config) # 
+        stance = torch.stack(stance)             # (B, D) 把形状相同的张量沿着一个新维度堆叠起来
+        logits = self.fc(stance)                 # (B, num_classes)把每个向量变为三个立场分数
+        ce_loss = self.criterion(logits, label) #分类损失
+        target_contrastive_loss = target_CL(H_final, targets, self.config) #对比损失
         loss = ce_loss + self.alpha * target_contrastive_loss
-        return loss, logits, label
+        return loss, logits, label 
