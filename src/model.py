@@ -86,7 +86,7 @@ class SITCL(nn.Module):
         H_final = [] #经SSE处理后的对话
         stance = []#每段对话最后一句
         for dia_id, (st, ed) in enumerate(dia_idx):
-            h = out[st:ed, -2, :] # 取单个对话（当前对话的所有子对话）的向量，(L,D)，取每个字对话的倒数第二个token位置（mask），保留该位置向量中全部768个数
+            h = out[st:ed, -2, :] # 取单个对话（当前对话的所有子对话）的向量，(L,D)，取每个字对话的倒数第二个token位置，保留该位置向量中全部768个数
             o, _ = self.gru(h.unsqueeze(0))      # (1, L, D) 当前对话经过 GRU 后的各句话表示。
             o = o.squeeze(0)                     # (L, D)
             v = self.SSE(o, speakers[dia_id]) # Speaker Interaction Encoder
