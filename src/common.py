@@ -36,8 +36,8 @@ class DictToObject:
 def compute_target_prototypes(H_lst, new_target, num_classes):
     # H_lst: List[List[tensor]], new_target: List[int]
     prototypes = [] # 原型向量
-    vectors = []
-    labels = []
+    vectors = [] # 子对话向量
+    labels = [] # 目标编号
     for c in range(num_classes):
         prototype = []
         for i in range(len(new_target)):
@@ -50,23 +50,23 @@ def compute_target_prototypes(H_lst, new_target, num_classes):
         else:
             prototype = torch.zeros_like(H_lst[0][0])
         prototypes.append(prototype)
-    return torch.stack(prototypes), torch.stack(vectors), torch.tensor(labels)
+    return torch.stack(prototypes), torch.stack(vectors), torch.tensor(labels) # 返回堆叠后的原型、子对话向量，目标编号
 
 def target_CL(H_lst, target, config):
     # H_lst: List of utterance list; target: list of int/string
     tar_dic = {} # 目标的字典投影
     tmp = 0
-    for t in target:
+    for t in target: # 根据目标出现顺序分配编号
         if t not in tar_dic:
             tar_dic[t] = tmp
             tmp += 1
-    new_target = [tar_dic[t] for t in target] # 长度为目标数量的等差数列
-    num_classes = tmp
+    new_target = [tar_dic[t] for t in target] # 长度为目标数量的等差数列 目标->编号
+    num_classes = tmp #不同目标的数量
     prototypes, vectors, labels = compute_target_prototypes(H_lst, new_target, num_classes) # prototypes: (B, D) 每个对话中所有子对话的平均向量; vectors: (所有单对话,D)，只是取向量
-    vectors = F.normalize(vectors, p=2, dim=-1)
+    vectors = F.normalize(vectors, p=2, dim=-1) # 归一化
     prototypes = F.normalize(prototypes, dim=-1)
     similarities = torch.mm(vectors, prototypes.T) # (所有单对话,D)*(D, B) = (所有单对话, 4)
     similarities /= config.tau # 每一行是某个子对话向量与所有类别原型的余弦相似度
-    labels = labels.to(config.device)
+    labels = labels.to(config.device) # 目标编号存入设备
     loss = F.cross_entropy(similarities, labels) # 基于类别原型的对比学习分类 >——> 每个子对话向量被要求与自己类别的原型向量最接近，同时和其他类别的原型保持距离
     return loss
