@@ -13,14 +13,14 @@ class Attention(nn.Module):
         self.scale = hidden_dim ** -0.5
 
     def forward(self, query, keys, values):
-        # query: (B, D) or (D,)
+        # query: (B, D) or (D,) 查询条件
         # keys/values: (L, D)
         if query.dim() == 1:
-            query = query.unsqueeze(0)
-        q = self.query_proj(query)         # (B, D)
+            query = query.unsqueeze(0) #（D, ) -> (1, D)
+        q = self.query_proj(query)         # (B, D) 投影
         k = self.key_proj(keys)            # (L, D)
         v = self.value_proj(values)        # (L, D)
-        attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # (B, L)
+        attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # (B, L) 当前 query 分别与L个Key的匹配分数
         attn_weights = torch.softmax(attn_scores, dim=-1)                # (B, L)
         output = torch.matmul(attn_weights, v)                           # (1, L)*(L, 768) = (B, D) 
         return output.squeeze(0) if output.size(0) == 1 else output
@@ -28,26 +28,27 @@ class Attention(nn.Module):
 class SSE(nn.Module):
     def __init__(self, hidden_dim=768):
         super().__init__()
-        self.linear_intra = nn.Linear(hidden_dim * 2, hidden_dim)
+        self.linear_intra = nn.Linear(hidden_dim * 2, hidden_dim)  #（输入维数，输出维数）
         self.linear_inter = nn.Linear(hidden_dim, hidden_dim)
         self.attention_intra = Attention(hidden_dim)
         self.attention_inter = Attention(hidden_dim)
 
     def forward(self, utterances, speakers):
-        # utterances: (L, D)  speakers: list or tensor of L
+        # utterances: (L, D) 经GRU处理后的向量o  speakers: list or tensor of L
         device = utterances.device
         speakers = torch.tensor(map_sequence(speakers), device=device) # 把对话人id投影为等差数列，并按出现顺序排列: [0,2,5,2,5,2]->[0,1,2,1,2,1]
-        V_lst = []
-        last_speaker_idx = dict()
+        V_lst = [] #保存每句话经过 SSE 处理后的结果
+        last_speaker_idx = dict() #（说话者编号，最后一次发言位置）
         for i in range(len(speakers)): # 每个轮次
-            speaker_id = speakers[i].item()
+            speaker_id = speakers[i].item() # 张量 → 数字 
             if speaker_id not in last_speaker_idx:
-                V_lst.append(utterances[i])
+                V_lst.append(utterances[i]) # 第一次说话，直接保存当前GRU输出
             else:
                 prev_idx = last_speaker_idx[speaker_id] # 当前对话人上一次的对话轮次
-                vh_concat = torch.cat((V_lst[prev_idx], utterances[i]), dim=-1) # 把同一个人说的子对话按照向量维度拼接768 -> 768*2 (D*2)
-                q_intra = self.linear_intra(vh_concat) # 768*2 -> 768 (D)
-                c = utterances[:i+1] # 之前所有子对话+当前对话人的子对话
+                vh_concat = torch.cat((V_lst[prev_idx], utterances[i]), dim=-1) # 把同一个人说的子对话按照最后一维向量维度拼接768 -> 768*2 (D*2)
+                	# cat：沿已有维度拼接。 stack：新增一个维度，把张量堆在一起。
+                q_intra = self.linear_intra(vh_concat) # 768*2 -> 768 (D) 查询向量
+                c = utterances[:i+1] # 之前所有子对话+当前对话人的子对话的GRU结果
                 v_intra = self.attention_intra(q_intra, c, c) # 计算注意力，得到(D)
 
                 q_inter = self.linear_inter(utterances[i]) # (D)
