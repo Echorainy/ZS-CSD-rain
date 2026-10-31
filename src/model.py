@@ -14,16 +14,16 @@ class Attention(nn.Module):
 
     def forward(self, query, keys, values):
         # query: (B, D) or (D,) 查询条件
-        # keys/values: (L, D)
+        # keys/values: (L, D) 由c或k变换得到
         if query.dim() == 1:
             query = query.unsqueeze(0) #（D, ) -> (1, D)
         q = self.query_proj(query)         # (B, D) 投影
         k = self.key_proj(keys)            # (L, D)
         v = self.value_proj(values)        # (L, D)
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # (B, L) 当前 query 分别与L个Key的匹配分数
-        attn_weights = torch.softmax(attn_scores, dim=-1)                # (B, L)
-        output = torch.matmul(attn_weights, v)                           # (1, L)*(L, 768) = (B, D) 
-        return output.squeeze(0) if output.size(0) == 1 else output
+        attn_weights = torch.softmax(attn_scores, dim=-1)                # (B, L) 匹配分数->权重
+        output = torch.matmul(attn_weights, v)                           # (1, L)*(L, 768) = (B, D) 用权重汇总value
+        return output.squeeze(0) if output.size(0) == 1 else output #(1, 768) -> (768,)
 
 class SSE(nn.Module):
     def __init__(self, hidden_dim=768):
@@ -34,7 +34,8 @@ class SSE(nn.Module):
         self.attention_inter = Attention(hidden_dim)
 
     def forward(self, utterances, speakers):
-        # utterances: (L, D) 经GRU处理后的向量o  speakers: list or tensor of L
+        # utterances: (L, D) 当前所有对话经GRU处理后的向量 eg：utterances = [u0, u1, u2, u3]，每句话对对应一个向量u[i],实际utterances.shape = (4, 768)
+        # speakers: list or tensor of L
         device = utterances.device
         speakers = torch.tensor(map_sequence(speakers), device=device) # 把对话人id投影为等差数列，并按出现顺序排列: [0,2,5,2,5,2]->[0,1,2,1,2,1]
         V_lst = [] #保存每句话经过 SSE 处理后的结果
@@ -47,11 +48,11 @@ class SSE(nn.Module):
                 prev_idx = last_speaker_idx[speaker_id] # 当前对话人上一次的对话轮次
                 vh_concat = torch.cat((V_lst[prev_idx], utterances[i]), dim=-1) # 把同一个人说的子对话按照最后一维向量维度拼接768 -> 768*2 (D*2)
                 	# cat：沿已有维度拼接。 stack：新增一个维度，把张量堆在一起。
-                q_intra = self.linear_intra(vh_concat) # 768*2 -> 768 (D) 查询向量
-                c = utterances[:i+1] # 之前所有子对话+当前对话人的子对话的GRU结果
-                v_intra = self.attention_intra(q_intra, c, c) # 计算注意力，得到(D)
+                q_intra = self.linear_intra(vh_concat) # 768*2 -> 768 (D)把同一说话者上一次发言的SSE表示和当前发言的GRU表示拼接，经linear得的查询向量
+                c = utterances[:i+1] # 之前所有子对话+当前对话人的子对话的GRU结果 截至当前句i的向量
+                v_intra = self.attention_intra(q_intra, c, c) # 计算注意力，得到(D) 在查询向量引导下，对截至当前的对话表示进行加权汇总，得到当前话语的表示
 
-                q_inter = self.linear_inter(utterances[i]) # (D)
+                q_inter = self.linear_inter(utterances[i]) # (D) 当前话语的GRU表示
                 k = torch.stack([V_lst[j] for j in range(prev_idx, i)]) if i > prev_idx else utterances[i].unsqueeze(0) # k是[当前对话人的上一个子对话,上一个对话人的子对话]
                 v_inter = self.attention_inter(q_inter, k, k) if len(k) > 0 else torch.zeros_like(q_inter)
 
